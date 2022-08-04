@@ -12,22 +12,22 @@ var (
 	cacheErr       = errors.New("level cache must grater than 0")
 )
 
-type Option func(*skipList) error
+type Option func(*SkipList) error
 
 //设置最大层数
 func WithMaxLevel(level int) Option {
-	return func(sl *skipList) error {
+	return func(sl *SkipList) error {
 		if level < 1 {
 			return levelErr
 		}
-		sl.maxLevel = level
+		sl.constMaxLevel = level
 		return nil
 	}
 }
 
 //设置层数生成概率
 func WithProbability(probability float64) Option {
-	return func(sl *skipList) error {
+	return func(sl *SkipList) error {
 		if probability <= 0 || probability >= 1 {
 			return probabilityErr
 		}
@@ -38,7 +38,7 @@ func WithProbability(probability float64) Option {
 
 //设置随机数
 func WithLevelRandSource(rd *rand.Rand) Option {
-	return func(sl *skipList) error {
+	return func(sl *SkipList) error {
 		if rd == nil {
 			return randErr
 		}
@@ -49,7 +49,7 @@ func WithLevelRandSource(rd *rand.Rand) Option {
 
 //设置level缓冲区大小
 func WithLevelCacheSize(size int) Option {
-	return func(sl *skipList) error {
+	return func(sl *SkipList) error {
 		if size < 1 {
 			return cacheErr
 		}

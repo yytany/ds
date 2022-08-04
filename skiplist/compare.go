@@ -2,6 +2,7 @@ package skiplist
 
 //比较接口原型
 type CompareAble interface {
+	//Compare 函数签名
 	Compare(a, b interface{}) int // -1 a<b  0 a==b  1 a>b
 }
 
