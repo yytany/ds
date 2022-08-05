@@ -5,6 +5,10 @@ import (
 	"time"
 )
 
+/*
+	rank   顺位 从 1 ~ n
+*/
+
 const (
 	defaultMaxLevel       = 32  //默认最大层数
 	defaultProbability    = 0.5 //默认层数生成概率
@@ -89,13 +93,12 @@ func New(compareAble CompareAble, options ...Option) (*SkipList, error) {
 
 //初始化头结点   (头结点仅映射层数，不存储数据)
 func (sl *SkipList) headNodeInit() {
-	sln := &skipListNode{
+	sl.head = &skipListNode{
 		prev:  nil,
 		level: make([]levelNode, sl.constMaxLevel),
 		key:   nil,
 		data:  nil,
 	}
-	sl.head = sln
 }
 
 //更新当前最大层数
@@ -111,16 +114,133 @@ func (sl *SkipList) updateCurrentMaxLevel() {
 	sl.currentMaxLevel = 0
 }
 
-//通过条件搜索
-func (sl *SkipList) searchByKey(key interface{}) {
-	if sl.length == 0 {
-		return
+//获取所有相等结点
+func (sl *SkipList) searchAllByKey(key interface{}) []*skipListNode {
+	list := []*skipListNode{}
+	if node := sl.searchRandOneByKey(key); node != nil {
+		list = append(list, node)
+		for preNode := node.prev; preNode != nil && sl.equals(key, preNode.key); preNode = preNode.prev {
+			list = append(list, preNode)
+		}
+		sl.reverse(list)
+		for nextNode := node.level[0].next; nextNode != nil && sl.equals(key, nextNode.key); nextNode = nextNode.level[0].next {
+			list = append(list, nextNode)
+		}
 	}
+
+	return list
+}
+
+//获取相等的第一个
+func (sl *SkipList) searchFirstOneByKey(key interface{}) *skipListNode {
+	node := sl.searchRandOneByKey(key)
+	if node != nil {
+		for node.prev != nil && sl.equals(key, node.prev.key) {
+			node = node.prev
+		}
+	}
+	return node
+}
+
+//获取相等的末尾一个
+func (sl *SkipList) searchTailOneByKey(key interface{}) *skipListNode {
+	node := sl.searchRandOneByKey(key)
+	if node != nil {
+		for node.level[0].next != nil && sl.equals(key, node.level[0].next) {
+			node = node.level[0].next
+		}
+	}
+	return node
+}
+
+//获取任意一个,只要找到相等的就返回
+func (sl *SkipList) searchRandOneByKey(key interface{}) *skipListNode {
+	if sl.length > 0 {
+		var node *skipListNode
+		for level := sl.currentMaxLevel; level >= 0; level-- {
+			if node = sl.head.level[level].next; node != nil && sl.lessOrEquals(node.key, key) {
+				for ; level >= 0; level-- {
+					for {
+						if sl.equals(node.key, key) {
+							return node
+						} else if node.level[level].next != nil && sl.lessOrEquals(node.level[level].next.key, key) {
+							node = node.level[level].next
+						} else {
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+//通过顺位排序搜索   顺位 1~n
+func (sl *SkipList) searchByRankRange(start, end int) []*skipListNode {
+	list := []*skipListNode{}
+	if start > end || start < 1 || start > sl.length {
+		return list
+	}
+	if start == sl.length {
+		list = append(list, sl.tail)
+	} else if end == sl.length {
+		for node := sl.tail; start <= end && end >= 1; end, node = end-1, node.prev {
+			list = append(list, node)
+		}
+		sl.reverse(list)
+	} else if start < sl.length {
+		node := sl.head.level[0].next
+		if start > 1 {
+			node = sl.searchByRank(start)
+		}
+		for ; start <= end && start <= sl.length && node != nil; start, node = start+1, node.level[0].next {
+			list = append(list, node)
+		}
+	}
+	return list
+}
+
+//通过精确rank搜索
+func (sl *SkipList) searchByRank(rk int) *skipListNode {
+	if rk > sl.length || rk < 1 {
+		return nil
+	}
+	if rk == 1 {
+		return sl.head.level[0].next
+	} else if rk == sl.length {
+		return sl.tail
+	} else {
+		for level := sl.currentMaxLevel; level >= 0; level-- {
+			if node := sl.head.level[level].next; node != nil && sl.head.level[level].span <= rk {
+				currentRank := sl.head.level[level].span
+				for ; level >= 0; level-- {
+					for {
+						if currentRank == rk {
+							return node
+						} else if node.level[level].next != nil && node.level[level].span+currentRank <= rk {
+							currentRank += node.level[level].span
+							node = node.level[level].next
+						} else {
+							break
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+//TODO 添加结点
+func (sl *SkipList) addNode(key, data interface{}) {
 
 }
 
-//通过顺位搜索
-func (sl *SkipList) searchByRank(start, end int)
+//TODO 删除结点
+func (sl *SkipList) delNode(node *skipListNode) {
+
+}
 
 //a,b相同
 func (sl *SkipList) equals(a, b interface{}) bool {
@@ -145,4 +265,11 @@ func (sl *SkipList) lessOrEquals(a, b interface{}) bool {
 //a大于等于b
 func (sl *SkipList) greaterOrEquals(a, b interface{}) bool {
 	return sl.compareAble.Compare(a, b) != -1
+}
+
+//翻转node
+func (sl *SkipList) reverse(list []*skipListNode) {
+	for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 { //让前序相等结点保持原顺序
+		list[i], list[j] = list[j], list[i]
+	}
 }
