@@ -234,12 +234,112 @@ func (sl *SkipList) searchByRank(rk int) *skipListNode {
 
 //TODO 添加结点
 func (sl *SkipList) addNode(key, data interface{}) {
+	addNode := sl.nodeGenerate(key, data)
+	if sl.length == 1 { //generate +1 了
+		for level := sl.currentMaxLevel; level >= 0; level-- {
+			sl.head.level[level].next = addNode
+			sl.head.level[level].span = 1
+		}
+		sl.tail = addNode
+		return
+	}
+	prevL := make([]*skipListNode, len(addNode.level)) // [层数]前置结点
+	nextL := make([]*skipListNode, len(addNode.level)) // [层数]后置结点
+	nrm := map[*skipListNode]int{}                     // [结点:rank]
+	nodeRank := 0                                      //当前结点rank
+	var preNode *skipListNode
+	for level := sl.currentMaxLevel; level >= 0; level-- {
+		if preNode = sl.head.level[level].next; preNode != nil {
+			if sl.lessOrEquals(preNode.key, addNode.key) {
+				nodeRank = sl.head.level[level].span
+				for ; level >= 0; level-- {
+					if sl.lessOrEquals(preNode.key, key) &&
+						(preNode.level[level].next == nil || sl.greaterThan(preNode.level[level].next, key)) {
+						addNode.prev = preNode
+						addNode.level[level].next = preNode.level[level].next
+						preNode.level[level].next = addNode
+						addNode.level[level].next.prev = addNode
+						nextL[level] = addNode.level[level].next
+						nrm[preNode] = nodeRank
+						nrm[addNode.level[level].next] = nodeRank + 1 + preNode.level[level].span
+					} else if sl.lessOrEquals(preNode.key, key) {
+						nodeRank += preNode.level[level].span
+						preNode = preNode.level[level].next
+					} else {
+						prevL[level] = preNode
+						nrm[preNode] = nodeRank
+						preNode.level[level].next = addNode
+					}
+				}
+			} else if level < len(addNode.level) {
+				nextL[level] = preNode
+				prevL[level] = sl.head
+				nextL[level] = preNode
+			}
+		} else if level < len(addNode.level) {
+			prevL[level] = sl.head
+		}
+	}
+
+	//更新span
 
 }
 
-//TODO 删除结点
-func (sl *SkipList) delNode(node *skipListNode) {
+//更新结点span (从该结点向两边扩散)
+func (sl *skipListNode) updateSpan(node *skipListNode) {
 
+}
+
+// 删除结点
+func (sl *SkipList) delNode(delNode *skipListNode) {
+	if sl.length == 0 || delNode == nil {
+		return
+	}
+	defer func(sl *SkipList) {
+		sl.length--
+		if len(delNode.level) == sl.currentMaxLevel {
+			sl.updateCurrentMaxLevel()
+		}
+	}(sl)
+	if sl.tail == delNode {
+		sl.tail = delNode.prev
+	}
+	var preNode *skipListNode
+	for level := sl.currentMaxLevel; level >= 0; level-- {
+		if preNode = sl.head.level[level].next; preNode != nil {
+			if preNode == delNode {
+				sl.head.level[level].next = delNode.level[level].next
+				delNode.level[level].next.prev = nil
+				sl.head.level[level].span += delNode.level[level].span - 1
+				if delNode.level[level].next == nil {
+					sl.head.level[level].span = 0
+				}
+			} else if sl.lessOrEquals(preNode.key, delNode.key) {
+				for ; level >= 0; level-- {
+				currentLevelNext:
+					if preNode.level[level].next != nil {
+						if preNode.level[level].next == delNode {
+							preNode.level[level].next = delNode.level[level].next
+							delNode.level[level].next.prev = preNode
+							preNode.level[level].span += delNode.level[level].span - 1
+							if delNode.level[level].next == nil {
+								preNode.level[level].span = 0
+							}
+						} else {
+							if sl.lessOrEquals(preNode.level[level].next.key, delNode.key) {
+								preNode = preNode.level[level].next
+								goto currentLevelNext
+							} else {
+								preNode.level[level].span--
+							}
+						}
+					}
+				}
+			} else {
+				sl.head.level[level].span--
+			}
+		}
+	}
 }
 
 //a,b相同
