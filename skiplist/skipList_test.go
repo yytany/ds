@@ -36,7 +36,7 @@ func Test_Operate(t *testing.T) {
 		fmt.Println(list[k].data)
 	}
 	fmt.Println("------------------")
-	fmt.Println(sl.searchNodeAndRankByKey(CmpInstanceInt(4)))
+	fmt.Println(sl.searchRandNodeAndRankByKey(CmpInstanceInt(4)))
 	fmt.Println("------------------")
 	it := NewIterator(sl)
 	it.PrintGraph()

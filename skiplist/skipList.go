@@ -69,7 +69,7 @@ func (sl *SkipList) nodeGenerate(key, data interface{}) *skipListNode {
 	}
 }
 
-//初始化一个跳表。需要实现 score 的比较接口,以便实现升序或者降序跳表
+//初始化一个跳表。需要实现 key 的比较接口,以便实现升序或者降序跳表
 func New(compareAble CompareAble, options ...Option) (*SkipList, error) {
 	sl := &SkipList{
 		rd:              rand.New(rand.NewSource(time.Now().UnixNano())),
@@ -172,9 +172,9 @@ func (sl *SkipList) searchRandOneByKey(key interface{}) *skipListNode {
 	return nil
 }
 
-//获取相同key的rank值，找不到则为-1
-func (sl *SkipList) searchNodeAndRankByKey(key interface{}) (*skipListNode, int) {
-	if sl.length > 0 && !sl.allowSameKey {
+//获取相同key的rank值，
+func (sl *SkipList) searchRandNodeAndRankByKey(key interface{}) (*skipListNode, int) {
+	if sl.length > 0 {
 		currentRank := 0
 		preNode := sl.head
 		for level := sl.currentMaxLevel; level >= 0; level-- {
@@ -190,6 +190,30 @@ func (sl *SkipList) searchNodeAndRankByKey(key interface{}) (*skipListNode, int)
 		}
 	}
 	return nil, -1
+}
+
+//获取相等的第一个
+func (sl *SkipList) searchFirstNodeAndRankByKey(key interface{}) (*skipListNode, int) {
+	node, rank := sl.searchRandNodeAndRankByKey(key)
+	if node != nil {
+		for node.prev != nil && sl.equals(key, node.prev.key) {
+			node = node.prev
+			rank--
+		}
+	}
+	return node, rank
+}
+
+//获取相等的第一个
+func (sl *SkipList) searchTailNodeAndRankByKey(key interface{}) (*skipListNode, int) {
+	node, rank := sl.searchRandNodeAndRankByKey(key)
+	if node != nil {
+		for node.level[0].next != nil && sl.equals(key, node.level[0].next.key) {
+			node = node.level[0].next
+			rank++
+		}
+	}
+	return node, rank
 }
 
 //通过顺位排序搜索   顺位 1~n
@@ -254,11 +278,24 @@ func (sl *SkipList) updateBatchByKey(key, data interface{}) bool {
 	return len(list) > 0
 }
 
-//通过key更新  仅可以在无重复key下更新
+//通过key更新  无重复key下更新成功
 func (sl *SkipList) updateByKey(key, data interface{}) bool {
-	if !sl.allowSameKey {
-		if node := sl.searchRandOneByKey(key); node != nil {
+	if node := sl.searchRandOneByKey(key); node != nil {
+		if (node.prev == nil || !sl.equals(node.key, node.prev.key)) &&
+			(node.level[0].next == nil || !sl.equals(node.key, node.level[0].next.key)) {
 			sl.updateByNode(node, data)
+			return true
+		}
+	}
+	return false
+}
+
+//通过key删除  无重复key时删除成功
+func (sl *SkipList) deleteByKey(key interface{}) bool {
+	if node := sl.searchRandOneByKey(key); node != nil {
+		if (node.prev == nil || !sl.equals(node.key, node.prev.key)) &&
+			(node.level[0].next == nil || !sl.equals(node.key, node.level[0].next.key)) {
+			sl.delNode(node)
 			return true
 		}
 	}
@@ -270,13 +307,11 @@ func (sl *SkipList) updateByNode(node *skipListNode, data interface{}) {
 	node.data = data
 }
 
-//添加结点   如果不允许有相同结点的话，添加时会失败
+//添加结点   如果不允许有相同结点的话，重复添加时会失败
 func (sl *SkipList) addNode(key, data interface{}) bool {
-
 	if !sl.allowSameKey && sl.searchRandOneByKey(key) != nil {
 		return false
 	}
-
 	addNode := sl.nodeGenerate(key, data)
 	if sl.length == 1 { //generate +1 了
 		for level := sl.currentMaxLevel; level >= 0; level-- {
@@ -429,7 +464,7 @@ func (sl *SkipList) reverse(list []*skipListNode) {
    对外实现
 */
 
-//获取跳表长度
+//获取结点数量
 func (sl *SkipList) GetLength() int {
 	return sl.length
 }
@@ -468,8 +503,8 @@ func (sl *SkipList) GetTailByKey(key interface{}) interface{} {
 	return nil
 }
 
-//通过key搜索相等的某一个结点数据
-func (sl *SkipList) GetByKey(key interface{}) interface{} {
+//通过key搜索相等的某一个结点数据 有重复key的结点则返回任意一个结点数据
+func (sl *SkipList) GetRandByKey(key interface{}) interface{} {
 	node := sl.searchRandOneByKey(key)
 	if node != nil {
 		return node.data
@@ -477,7 +512,7 @@ func (sl *SkipList) GetByKey(key interface{}) interface{} {
 	return nil
 }
 
-//通过key搜索所有结点数据
+//通过key搜索所有结点数据  返回所有结点数据
 func (sl *SkipList) GetAllByKey(key interface{}) []interface{} {
 	list := sl.searchAllByKey(key)
 	data := make([]interface{}, len(list))
@@ -487,9 +522,27 @@ func (sl *SkipList) GetAllByKey(key interface{}) []interface{} {
 	return data
 }
 
-//获取指定key所在的排位，allowSameKey == false 时可以获取到
-func (sl *SkipList) GetWithRankByKey(key interface{}) (interface{}, int) {
-	node, rk := sl.searchNodeAndRankByKey(key)
+//获取指定key的任意相等结点数据及所在的排位  重复结点key则返回任意一个结点数据
+func (sl *SkipList) GetRandWithRankByKey(key interface{}) (interface{}, int) {
+	node, rk := sl.searchRandNodeAndRankByKey(key)
+	if node != nil {
+		return node.data, rk
+	}
+	return nil, rk
+}
+
+//获取指定key的第一个相等结点数据及所在的排位
+func (sl *SkipList) GetFirstWithRankByKey(key interface{}) (interface{}, int) {
+	node, rk := sl.searchFirstNodeAndRankByKey(key)
+	if node != nil {
+		return node.data, rk
+	}
+	return nil, rk
+}
+
+//获取指定key的最后一个相等结点数据及所在的排位
+func (sl *SkipList) GetTailWithRankByKey(key interface{}) (interface{}, int) {
+	node, rk := sl.searchTailNodeAndRankByKey(key)
 	if node != nil {
 		return node.data, rk
 	}
@@ -515,12 +568,12 @@ func (sl *SkipList) GetByRankRange(start, end int) []interface{} {
 	return data
 }
 
-//更新所有和key相同的数据
+//更新所有和key相同的数据 所有相同的都会被更新 (更新结点数大于0时返回true)
 func (sl *SkipList) UpdateBatchByKey(key, data interface{}) bool {
 	return sl.updateBatchByKey(key, data)
 }
 
-//更新和key相同的数据  仅在 allowSameKey == false 使用
+//更新和key相同的数据  当只有一个相同key的结点数据时能更新成功
 func (sl *SkipList) UpdateByKey(key, data interface{}) bool {
 	return sl.updateByKey(key, data)
 }
@@ -530,13 +583,19 @@ func (sl *SkipList) UpdateByRank(rank int, data interface{}) bool {
 	node := sl.searchByRank(rank)
 	if node != nil {
 		sl.updateByNode(node, data)
+		return true
 	}
 	return false
 }
 
 //删除所有和key相同的数据
-func (sl *SkipList) DeleteByKey(key interface{}) bool {
+func (sl *SkipList) DeleteBatchByKey(key interface{}) bool {
 	return sl.delByKey(key)
+}
+
+//删除和key相同的数据  当只有一个相同key的结点数据时能删除成功
+func (sl *SkipList) DeleteByKey(key interface{}) bool {
+	return sl.deleteByKey(key)
 }
 
 //删除指定排位的结点
@@ -549,7 +608,11 @@ func (sl *SkipList) DeleteByRank(rank int) bool {
 	return false
 }
 
-//插入数据 在 allowSameKey == false 时，有重复key将会返回false
+/*
+插入数据
+在 设置了  WithAllowTheSameKey(false)
+即 allowSameKey == false 时,不允许有重复key时，重复的key添加将会返回false
+*/
 func (sl *SkipList) Insert(key, data interface{}) bool {
 	return sl.addNode(key, data)
 }
