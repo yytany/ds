@@ -72,3 +72,8 @@ func (q *LoopQueue) IsEmpty() bool {
 func (q *LoopQueue) IsFull() bool {
 	return q.length == len(q.queue)
 }
+
+//队列内当前存储的数据长度
+func (q *LoopQueue) Length() int {
+	return q.length
+}
