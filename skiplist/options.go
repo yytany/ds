@@ -9,7 +9,8 @@ var (
 	levelErr       = errors.New("level must grater than 1")
 	probabilityErr = errors.New("probability must grater than 0 and less than 1")
 	randErr        = errors.New("*rand.Rand is nil")
-	cacheErr       = errors.New("level cache must grater than 0")
+	cacheErr       = errors.New("cache size  must grater than 0")
+	cacheParamsErr = errors.New("cache params can not greater than cache size")
 )
 
 type Option func(*SkipList) error
@@ -47,13 +48,27 @@ func WithLevelRandSource(rd *rand.Rand) Option {
 	}
 }
 
-//设置level缓冲区大小
-func WithLevelCacheSize(size int) Option {
+//设置level缓冲区大小  缓冲区可以预先给定默认值，以达到初始定制层数
+func WithLevelCacheSize(size int, params ...int) Option {
 	return func(sl *SkipList) error {
 		if size < 1 {
 			return cacheErr
 		}
 		sl.levelCh = make(chan int, size)
+		if len(params) > size {
+			return cacheParamsErr
+		}
+		for k := range params {
+			sl.levelCh <- params[k]
+		}
+		return nil
+	}
+}
+
+//设置允许相同的key   如果为false，在插入相同key的值时将不生效
+func WithAllowTheSameKey(allow bool) Option {
+	return func(sl *SkipList) error {
+		sl.allowSameKey = allow
 		return nil
 	}
 }

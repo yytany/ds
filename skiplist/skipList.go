@@ -18,6 +18,7 @@ const (
 //跳表
 type SkipList struct {
 	rd              *rand.Rand
+	allowSameKey    bool          //是否允许存在相同的key  默认允许
 	levelCh         chan int      //创建结点时获取已经创建好的层数序列
 	length          int           //结点数量，不包含头结点
 	constMaxLevel   int           //能生成的最大层数
@@ -56,8 +57,8 @@ func (sl *SkipList) levelGenerate() {
 //生成新结点
 func (sl *SkipList) nodeGenerate(key, data interface{}) *skipListNode {
 	level := <-sl.levelCh
-	if level > sl.currentMaxLevel {
-		sl.currentMaxLevel = level
+	if level-1 > sl.currentMaxLevel {
+		sl.currentMaxLevel = level - 1
 	}
 	sl.length++
 	return &skipListNode{
@@ -72,6 +73,7 @@ func (sl *SkipList) nodeGenerate(key, data interface{}) *skipListNode {
 func New(compareAble CompareAble, options ...Option) (*SkipList, error) {
 	sl := &SkipList{
 		rd:              rand.New(rand.NewSource(time.Now().UnixNano())),
+		allowSameKey:    true,
 		levelCh:         make(chan int, defaultLevelCacheSize),
 		length:          0,
 		constMaxLevel:   defaultMaxLevel,
@@ -127,7 +129,6 @@ func (sl *SkipList) searchAllByKey(key interface{}) []*skipListNode {
 			list = append(list, nextNode)
 		}
 	}
-
 	return list
 }
 
@@ -146,7 +147,7 @@ func (sl *SkipList) searchFirstOneByKey(key interface{}) *skipListNode {
 func (sl *SkipList) searchTailOneByKey(key interface{}) *skipListNode {
 	node := sl.searchRandOneByKey(key)
 	if node != nil {
-		for node.level[0].next != nil && sl.equals(key, node.level[0].next) {
+		for node.level[0].next != nil && sl.equals(key, node.level[0].next.key) {
 			node = node.level[0].next
 		}
 	}
@@ -171,10 +172,33 @@ func (sl *SkipList) searchRandOneByKey(key interface{}) *skipListNode {
 	return nil
 }
 
+//获取相同key的rank值，找不到则为-1
+func (sl *SkipList) searchNodeAndRankByKey(key interface{}) (*skipListNode, int) {
+	if sl.length > 0 && !sl.allowSameKey {
+		currentRank := 0
+		preNode := sl.head
+		for level := sl.currentMaxLevel; level >= 0; level-- {
+			for ; ; preNode = preNode.level[level].next {
+				if preNode.level[level].next == nil || sl.greaterThan(preNode.level[level].next.key, key) {
+					if preNode != sl.head && sl.equals(preNode.key, key) {
+						return preNode, currentRank
+					}
+					break
+				}
+				currentRank += preNode.level[level].span
+			}
+		}
+	}
+	return nil, -1
+}
+
 //通过顺位排序搜索   顺位 1~n
 func (sl *SkipList) searchByRankRange(start, end int) []*skipListNode {
 	list := []*skipListNode{}
-	if start > end || start < 1 || start > sl.length {
+	if start < 1 {
+		start = 1
+	}
+	if start > end || start > sl.length {
 		return list
 	}
 	if start == sl.length {
@@ -221,8 +245,38 @@ func (sl *SkipList) searchByRank(rk int) *skipListNode {
 	return nil
 }
 
-//添加结点
-func (sl *SkipList) addNode(key, data interface{}) {
+//通过key批量更新
+func (sl *SkipList) updateBatchByKey(key, data interface{}) bool {
+	list := sl.searchAllByKey(key)
+	for k := range list {
+		sl.updateByNode(list[k], data)
+	}
+	return len(list) > 0
+}
+
+//通过key更新  仅可以在无重复key下更新
+func (sl *SkipList) updateByKey(key, data interface{}) bool {
+	if !sl.allowSameKey {
+		if node := sl.searchRandOneByKey(key); node != nil {
+			sl.updateByNode(node, data)
+			return true
+		}
+	}
+	return false
+}
+
+//通过结点更新
+func (sl *SkipList) updateByNode(node *skipListNode, data interface{}) {
+	node.data = data
+}
+
+//添加结点   如果不允许有相同结点的话，添加时会失败
+func (sl *SkipList) addNode(key, data interface{}) bool {
+
+	if !sl.allowSameKey && sl.searchRandOneByKey(key) != nil {
+		return false
+	}
+
 	addNode := sl.nodeGenerate(key, data)
 	if sl.length == 1 { //generate +1 了
 		for level := sl.currentMaxLevel; level >= 0; level-- {
@@ -230,7 +284,7 @@ func (sl *SkipList) addNode(key, data interface{}) {
 			sl.head.level[level].span = 1
 		}
 		sl.tail = addNode
-		return
+		return true
 	}
 	prevL := make([]*skipListNode, len(addNode.level)) // [层数]前置结点
 	nextL := make([]*skipListNode, len(addNode.level)) // [层数]后置结点
@@ -277,13 +331,31 @@ func (sl *SkipList) addNode(key, data interface{}) {
 	if sl.tail == nil || sl.tail.level[0].next != nil {
 		sl.tail = addNode
 	}
+	return true
 }
 
-//删除结点
-func (sl *SkipList) delNode(delNode *skipListNode) {
-	if sl.length == 0 || delNode == nil {
-		return
+//通过key删除结点 所有key相等的结点
+func (sl *SkipList) delByKey(key interface{}) bool {
+	if sl.allowSameKey {
+		list := sl.searchAllByKey(key)
+		if len(list) > 0 {
+			for k := range list {
+				sl.delNode(list[k])
+			}
+			return true
+		}
+	} else {
+		node := sl.searchRandOneByKey(key)
+		if node != nil {
+			sl.delNode(node)
+			return true
+		}
 	}
+	return false
+}
+
+//通过node删除结点
+func (sl *SkipList) delNode(delNode *skipListNode) {
 	defer func(sl *SkipList) {
 		sl.length--
 		if len(delNode.level)-1 >= sl.currentMaxLevel {
@@ -293,52 +365,32 @@ func (sl *SkipList) delNode(delNode *skipListNode) {
 	if sl.tail == delNode {
 		sl.tail = delNode.prev
 	}
+
+	//与当前key相等，但处于delNode的后面
+	equalsNextKeyMap := map[*skipListNode]bool{}
+	for delNodeNext := delNode.level[0].next; delNodeNext != nil && sl.equals(delNode.key, delNodeNext.key); delNodeNext = delNodeNext.level[0].next {
+		equalsNextKeyMap[delNodeNext] = true
+	}
+
 	preNode := sl.head
 	for level := sl.currentMaxLevel; level >= 0; level-- {
 		for ; ; preNode = preNode.level[level].next {
-			if preNode.level[level].next == nil ||
-				(sl.greaterThan(preNode.level[level].next.key, delNode.key) && preNode.level[level].next != delNode) {
-
+			if preNode.level[level].next == nil || sl.greaterThan(preNode.level[level].next.key, delNode.key) ||
+				(equalsNextKeyMap[preNode.level[level].next] && sl.equals(preNode.level[level].next.key, delNode.key)) {
+				if preNode.level[level].next != nil {
+					preNode.level[level].span--
+				}
+				break
+			} else if preNode.level[level].next == delNode {
+				preNode.level[level].next = delNode.level[level].next
+				preNode.level[level].span += delNode.level[level].span - 1
+				if delNode.level[level].next == nil {
+					preNode.level[level].span = 0
+				}
 				break
 			}
 		}
 	}
-
-	// for level := sl.currentMaxLevel; level >= 0; level-- {
-	// 	if preNode = sl.head.level[level].next; preNode != nil {
-	// 		if preNode == delNode {
-	// 			sl.head.level[level].next = delNode.level[level].next
-	// 			delNode.level[level].next.prev = nil
-	// 			sl.head.level[level].span += delNode.level[level].span - 1
-	// 			if delNode.level[level].next == nil {
-	// 				sl.head.level[level].span = 0
-	// 			}
-	// 		} else if sl.lessOrEquals(preNode.key, delNode.key) {
-	// 			for ; level >= 0; level-- {
-	// 			currentLevelNext:
-	// 				if preNode.level[level].next != nil {
-	// 					if preNode.level[level].next == delNode {
-	// 						preNode.level[level].next = delNode.level[level].next
-	// 						delNode.level[level].next.prev = preNode
-	// 						preNode.level[level].span += delNode.level[level].span - 1
-	// 						if delNode.level[level].next == nil {
-	// 							preNode.level[level].span = 0
-	// 						}
-	// 					} else {
-	// 						if sl.lessOrEquals(preNode.level[level].next.key, delNode.key) {
-	// 							preNode = preNode.level[level].next
-	// 							goto currentLevelNext
-	// 						} else {
-	// 							preNode.level[level].span--
-	// 						}
-	// 					}
-	// 				}
-	// 			}
-	// 		} else {
-	// 			sl.head.level[level].span--
-	// 		}
-	// 	}
-	// }
 }
 
 //a,b相同
@@ -371,4 +423,133 @@ func (sl *SkipList) reverse(list []*skipListNode) {
 	for i, j := 0, len(list)-1; i < j; i, j = i+1, j-1 { //让前序相等结点保持原顺序
 		list[i], list[j] = list[j], list[i]
 	}
+}
+
+/*
+   对外实现
+*/
+
+//获取跳表长度
+func (sl *SkipList) GetLength() int {
+	return sl.length
+}
+
+//获取第一个结点数据
+func (sl *SkipList) GetFirst() interface{} {
+	if sl.length > 0 {
+		return sl.head.level[0].next.data
+	}
+	return nil
+}
+
+//获取最后一个节点数据
+func (sl *SkipList) GetTail() interface{} {
+	if sl.length > 0 {
+		return sl.tail.data
+	}
+	return nil
+}
+
+//通过key搜索相等的第一个结点数据
+func (sl *SkipList) GetFirstByKey(key interface{}) interface{} {
+	node := sl.searchFirstOneByKey(key)
+	if node != nil {
+		return node.data
+	}
+	return nil
+}
+
+//通过key搜索相等的最后一个结点数据
+func (sl *SkipList) GetTailByKey(key interface{}) interface{} {
+	node := sl.searchTailOneByKey(key)
+	if node != nil {
+		return node.data
+	}
+	return nil
+}
+
+//通过key搜索相等的某一个结点数据
+func (sl *SkipList) GetByKey(key interface{}) interface{} {
+	node := sl.searchRandOneByKey(key)
+	if node != nil {
+		return node.data
+	}
+	return nil
+}
+
+//通过key搜索所有结点数据
+func (sl *SkipList) GetAllByKey(key interface{}) []interface{} {
+	list := sl.searchAllByKey(key)
+	data := make([]interface{}, len(list))
+	for k := range list {
+		data[k] = list[k].data
+	}
+	return data
+}
+
+//获取指定key所在的排位，allowSameKey == false 时可以获取到
+func (sl *SkipList) GetWithRankByKey(key interface{}) (interface{}, int) {
+	node, rk := sl.searchNodeAndRankByKey(key)
+	if node != nil {
+		return node.data, rk
+	}
+	return nil, rk
+}
+
+//获取指定排位的数据
+func (sl *SkipList) GetByRank(rk int) interface{} {
+	node := sl.searchByRank(rk)
+	if node != nil {
+		return node.data
+	}
+	return nil
+}
+
+//获取指定排位区间的数据
+func (sl *SkipList) GetByRankRange(start, end int) []interface{} {
+	list := sl.searchByRankRange(start, end)
+	data := make([]interface{}, len(list))
+	for k := range list {
+		data[k] = list[k].data
+	}
+	return data
+}
+
+//更新所有和key相同的数据
+func (sl *SkipList) UpdateBatchByKey(key, data interface{}) bool {
+	return sl.updateBatchByKey(key, data)
+}
+
+//更新和key相同的数据  仅在 allowSameKey == false 使用
+func (sl *SkipList) UpdateByKey(key, data interface{}) bool {
+	return sl.updateByKey(key, data)
+}
+
+//更新指定排名的数据
+func (sl *SkipList) UpdateByRank(rank int, data interface{}) bool {
+	node := sl.searchByRank(rank)
+	if node != nil {
+		sl.updateByNode(node, data)
+	}
+	return false
+}
+
+//删除所有和key相同的数据
+func (sl *SkipList) DeleteByKey(key interface{}) bool {
+	return sl.delByKey(key)
+}
+
+//删除指定排位的结点
+func (sl *SkipList) DeleteByRank(rank int) bool {
+	node := sl.searchByRank(rank)
+	if node != nil {
+		sl.delNode(node)
+		return true
+	}
+	return false
+}
+
+//插入数据 在 allowSameKey == false 时，有重复key将会返回false
+func (sl *SkipList) Insert(key, data interface{}) bool {
+	return sl.addNode(key, data)
 }
