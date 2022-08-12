@@ -9,14 +9,15 @@ data structure design and achieve
 
 ## 链表类
 
-### SkipList 跳表
+### SkipList 跳表  
+
 - 实现比较接口，就可以实现升序跳表或者降序跳表 （compare内包含个别实现示例，可以实现复杂的比较逻辑）
 ```
 //比较接口原型
 type CompareAble interface {
-	//Compare 函数签名
+	//Compare 函数签名  (建议调用侧需要保证key不为nil,否则需要在函数内实现对nil的处理)
 	Compare(a, b interface{}) int // -1 a<b  0 a==b  1 a>b
 }
 ```
-- 支持重复key元素与无重复key插入
+- 支持重复key元素与无重复key插入  
 - 迭代器层数遍历简单输出跳表结构图
