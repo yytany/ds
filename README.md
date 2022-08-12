@@ -15,7 +15,7 @@ data structure design and achieve
 ```
 //比较接口原型
 type CompareAble interface {
-	//Compare 函数签名  (建议调用侧需要保证key不为nil,否则需要在函数内实现对nil的处理)
+	//Compare 函数签名  (建议调用侧保证key不为nil,否则需要在函数内实现对nil的处理)
 	Compare(a, b interface{}) int // -1 a<b  0 a==b  1 a>b
 }
 ```
