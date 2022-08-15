@@ -5,10 +5,12 @@ data structure design and achieve
 持续更新一些有意思的数据结构  [队列,跳表]...
 
 ## 使用
-包导入：
+获取包：
 `go get https://github.com/yantao1995/ds`
 
 ### 队列类
+
+导入包
 
 ```
 import (
@@ -16,16 +18,30 @@ import (
 )
 ```
 
-#### loopQueue 循环队列
+#### LoopQueue 循环队列
 
 - 限定长度的循环队列
 
-创建循环队列对象示例: `lq, err := queue.NewLoopQueue(10)`
+创建: 
 
+```
+lq, err := queue.NewLoopQueue(10)
+```
+
+#### LoopDeque 循环双端队列
+
+- 限定长度的循环双端队列
+
+创建: 
+```
+lq, err := queue.NewLoopDeque(10)
+```
 
 ### 链表类
 
 #### SkipList 跳表  
+
+导入包
 
 ```
 import (
@@ -44,4 +60,7 @@ type CompareAble interface {
 - 支持重复key元素与无重复key插入  
 - 迭代器层数遍历简单输出跳表结构图
 
-创建跳表对象示例:  `skiplist, err := skiplist.New(&skiplist.CmpInstanceStruct{})` 
+创建:  
+```
+skiplist, err := skiplist.New(&skiplist.CmpInstanceStruct{})
+``` 
