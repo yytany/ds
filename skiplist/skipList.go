@@ -308,9 +308,9 @@ func (sl *SkipList) updateByNode(node *skipListNode, data interface{}) {
 }
 
 //添加结点   如果不允许有相同结点的话，重复添加时会失败
-func (sl *SkipList) addNode(key, data interface{}) bool {
+func (sl *SkipList) addNode(key, data interface{}) (int, bool) {
 	if !sl.allowSameKey && sl.searchRandOneByKey(key) != nil {
-		return false
+		return 0, false
 	}
 	addNode := sl.nodeGenerate(key, data)
 	if sl.length == 1 { //generate +1 了
@@ -319,7 +319,7 @@ func (sl *SkipList) addNode(key, data interface{}) bool {
 			sl.head.level[level].span = 1
 		}
 		sl.tail = addNode
-		return true
+		return 1, true
 	}
 	prevL := make([]*skipListNode, len(addNode.level)) // [层数]前置结点
 	nextL := make([]*skipListNode, len(addNode.level)) // [层数]后置结点
@@ -366,7 +366,7 @@ func (sl *SkipList) addNode(key, data interface{}) bool {
 	if sl.tail == nil || sl.tail.level[0].next != nil {
 		sl.tail = addNode
 	}
-	return true
+	return nodeRank, true
 }
 
 //通过key删除结点 所有key相等的结点
@@ -609,10 +609,11 @@ func (sl *SkipList) DeleteByRank(rank int) bool {
 }
 
 /*
-插入数据
-在 设置了  WithAllowTheSameKey(false)
-即 allowSameKey == false 时,不允许有重复key时，重复的key添加将会返回false
+	插入数据
+	在 设置了  WithAllowTheSameKey(false)
+	即 allowSameKey == false 时,不允许有重复key时，重复的key添加将会返回false
+	返回当前排名和插入结果
 */
-func (sl *SkipList) Insert(key, data interface{}) bool {
+func (sl *SkipList) Insert(key, data interface{}) (int, bool) {
 	return sl.addNode(key, data)
 }
