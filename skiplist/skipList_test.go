@@ -9,7 +9,7 @@ func Test_Operate(t *testing.T) {
 
 	var cmp *CmpInstanceInt
 	//sl, _ := New(cmp, WithAllowTheSameKey(true), WithLevelCacheSize(10, 2, 3, 4, 7, 4, 5))
-	sl, _ := New(cmp, WithAllowTheSameKey(false))
+	sl, _ := New(cmp, WithAllowTheSameKey(false), WithMaxLevel(2))
 	fmt.Println(sl.addNode(CmpInstanceInt(1), 1))
 	fmt.Println(sl.addNode(CmpInstanceInt(3), 3))
 	fmt.Println(sl.addNode(CmpInstanceInt(2), 2))
