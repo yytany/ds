@@ -222,11 +222,15 @@ func (sl *SkipList) searchByRankRange(start, end int) []*skipListNode {
 	if start < 1 {
 		start = 1
 	}
-	if start > end || start > sl.length {
+	if start > end || start > sl.length || sl.length == 0 {
 		return list
 	}
 	if start == sl.length {
 		list = append(list, sl.tail)
+	} else if start == 1 {
+		for node := sl.head.level[0].next; node != nil && start <= end && start <= sl.length; start, node = start+1, node.level[0].next {
+			list = append(list, node)
+		}
 	} else if end == sl.length {
 		for node := sl.tail; node != nil && start <= end && end >= 1; end, node = end-1, node.prev {
 			list = append(list, node)
@@ -421,6 +425,9 @@ func (sl *SkipList) delNode(delNode *skipListNode) {
 				preNode.level[level].span += delNode.level[level].span - 1
 				if delNode.level[level].next == nil {
 					preNode.level[level].span = 0
+				}
+				if level == 0 && delNode.level[level].next != nil {
+					delNode.level[level].next.prev = delNode.prev
 				}
 				break
 			}
