@@ -63,4 +63,14 @@ type CompareAble interface {
 创建:  
 ```
 skiplist, err := skiplist.New(&skiplist.CmpInstanceStruct{})
-``` 
+```
+
+### 自定义输出
+
+导入包
+
+```
+import (
+	"github.com/yantao1995/ds/printf"
+)
+```
