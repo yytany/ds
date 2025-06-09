@@ -1,3 +1,3 @@
 module github.com/yantao1995/ds
 
-go 1.18
+go 1.23
