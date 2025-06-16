@@ -2,7 +2,7 @@
 data structure design and achieve
 数据结构设计和实现 
 
-持续更新一些有意思的数据结构  [队列,跳表]...
+持续更新一些有意思的数据结构  [队列,跳表,限流器]...
 
 ## 使用
 获取包：
@@ -64,3 +64,22 @@ type CompareAble interface {
 ```
 skiplist, err := skiplist.New(&skiplist.CmpInstanceStruct{})
 ``` 
+
+### 限流器
+
+导入包
+
+```
+import (
+	"github.com/yantao1995/ds/limit"
+)
+```
+ 
+创建: 
+```
+//单一权重
+limiter := limit.NewRingWindowLimiter(time.Second, 2)
+
+//带权重数
+limiter := NewRingWindowLimiterWeight(windowSize, maxWeight)
+```
