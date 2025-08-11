@@ -6,7 +6,7 @@ data structure design and achieve
 
 ## 使用
 获取包：
-`go get https://github.com/yantao1995/ds`
+`go get https://github.com/yytany/ds`
 
 ### 队列类
 
@@ -14,7 +14,7 @@ data structure design and achieve
 
 ```
 import (
-	"github.com/yantao1995/ds/queue"
+	"github.com/yytany/ds/queue"
 )
 ```
 
@@ -45,7 +45,7 @@ lq, err := queue.NewLoopDeque(10)
 
 ```
 import (
-	"github.com/yantao1995/ds/skiplist"
+	"github.com/yytany/ds/skiplist"
 )
 ```
 
@@ -71,7 +71,7 @@ skiplist, err := skiplist.New(&skiplist.CmpInstanceStruct{})
 
 ```
 import (
-	"github.com/yantao1995/ds/limit"
+	"github.com/yytany/ds/limit"
 )
 ```
  

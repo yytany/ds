@@ -1,3 +1,3 @@
-module github.com/yantao1995/ds
+module github.com/yytany/ds
 
 go 1.23
